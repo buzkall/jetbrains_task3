@@ -15,7 +15,7 @@ A Laravel-based tool for analyzing data from the Stack Overflow 2024 survey.
 
 ```bash
 git clone <repository-url>
-cd FolderName
+cd task3_analyze_stack_overflow_survey/task3
 ```
 
 2. Install dependencies:
@@ -66,6 +66,14 @@ The tool provides an interactive menu with the following options:
    - Provides navigation to move between pages
    - Allows jumping to a specific page
 
+2. **Search for question**: Search for specific questions or options in the survey
+   - Enter a search term to find matching questions
+   - Searches across QuestionID, QuestionText, AnswerType, and other fields
+   - Results are displayed with the same pagination system as the survey structure
+   - Case-insensitive search that finds partial matches
+
+3. **Exit**: Exit the application
+
 ### Troubleshooting
 
 If you encounter memory issues, try increasing the memory limit:
@@ -96,6 +104,7 @@ The tests cover:
 2. Command execution
 3. Internal command methods
 4. Data retrieval and processing
+5. Search functionality for finding specific questions
 
 ### Writing Additional Tests
 
