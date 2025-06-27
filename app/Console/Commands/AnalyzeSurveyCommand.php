@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Storage;
 
 use function Laravel\Prompts\select;
 use function Laravel\Prompts\table;
+use function Laravel\Prompts\text;
 
 class AnalyzeSurveyCommand extends Command
 {
@@ -25,12 +26,15 @@ class AnalyzeSurveyCommand extends Command
                 'Select an option',
                 [
                     'structure' => 'Display the survey structure',
+                    'search' => 'Search for specific question / option',
                     'exit' => 'Exit',
                 ]
             );
 
             if ($option === 'structure') {
                 $this->displaySurveyStructure();
+            } elseif ($option === 'search') {
+                $this->searchSurveyStructure();
             } elseif ($option === 'exit') {
                 $this->info('Exiting.');
                 break;
@@ -41,12 +45,21 @@ class AnalyzeSurveyCommand extends Command
 
     protected function displaySurveyStructure()
     {
-        $filePath = resource_path('so_2024_raw.xlsx');
-        if (!file_exists($filePath)) {
-            $this->error('Excel file not found: ' . $filePath);
+        $questions = $this->loadSchemaQuestions();
+        if (empty($questions)) {
+            $this->warn('No questions found in the schema tab.');
             return;
         }
+        $this->info('Survey Structure (Questions):');
+        $headers = ['column', 'question_text'];
+        $rows = array_map(function($q) {
+            return explode(' | ', $q, 2);
+        }, $questions);
+        table($headers, $rows);
+    }
 
+    protected function loadSchemaQuestions(): array
+    {
         // Use maatwebsite/excel to read only the 'schema' sheet by name
         $questions = [];
         $this->info('Starting Excel import (sheet: schema)...');
@@ -74,19 +87,34 @@ class AnalyzeSurveyCommand extends Command
                 ];
             }
         };
+        $filePath = resource_path('so_2024_raw.xlsx');
         Excel::import($import, $filePath);
         $this->info('Import finished for schema sheet. Questions collected: ' . count($questions));
+        return $questions;
+    }
 
+    protected function searchSurveyStructure()
+    {
+        $questions = $this->loadSchemaQuestions();
         if (empty($questions)) {
-            $this->warn('No questions found in the second tab.');
+            $this->warn('No questions found in the schema tab.');
+            return;
+        }
+        $search = text('Enter search term (question text or code):');
+        if (!$search) {
+            $this->warn('No search term entered.');
+            return;
+        }
+        $headers = ['column', 'question_text'];
+        $rows = array_filter(array_map(function($q) use ($search) {
+            $cols = explode(' | ', $q, 2);
+            return (stripos($cols[0], $search) !== false || (isset($cols[1]) && stripos($cols[1], $search) !== false)) ? $cols : null;
+        }, $questions));
+        if (empty($rows)) {
+            $this->warn('No matches found.');
         } else {
-            $this->info('Survey Structure (Questions):');
-            // Use table: first row is headers, rest are rows
-            $headers = ['column', 'question_text'];
-            $rows = array_map(function($q) {
-                return explode(' | ', $q, 2);
-            }, $questions);
-            table($headers, $rows);
+            table($headers, array_values($rows));
         }
     }
+
 }
