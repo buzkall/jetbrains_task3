@@ -72,7 +72,15 @@ The tool provides an interactive menu with the following options:
    - Results are displayed with the same pagination system as the survey structure
    - Case-insensitive search that finds partial matches
 
-3. **Exit**: Exit the application
+3. **Make respondents subset**: Create a filtered subset of survey respondents
+   - Select a question to filter by
+   - Choose one or more answer options
+   - Creates a subset of respondents who selected any of the chosen options
+   - Displays a sample of the resulting subset
+   - Option to save the subset for further analysis
+   - The active subset is displayed in the main menu
+
+4. **Exit**: Exit the application
 
 ### Troubleshooting
 

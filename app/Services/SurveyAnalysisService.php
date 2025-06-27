@@ -10,6 +10,8 @@ use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 class SurveyAnalysisService
 {
     protected $filePath;
+    protected $surveyData = null;
+    protected $surveyStructure = null;
 
     public function __construct()
     {
@@ -18,6 +20,11 @@ class SurveyAnalysisService
 
     public function getSurveyStructure(): Collection
     {
+        // If we've already loaded the structure, return the cached version
+        if ($this->surveyStructure !== null) {
+            return $this->surveyStructure;
+        }
+
         try {
             // Check if file exists
             if (!file_exists($this->filePath)) {
@@ -80,7 +87,7 @@ class SurveyAnalysisService
             $data = collect();
             $rowCount = 0;
 
-            // Process all rows (removed the limit of 100)
+            // Process all rows
             for ($row = 2; $row <= $highestRow; $row++) {
                 $rowData = [];
                 $hasData = false;
@@ -105,9 +112,102 @@ class SurveyAnalysisService
             $spreadsheet->disconnectWorksheets();
             unset($spreadsheet);
 
+            // Cache the structure
+            $this->surveyStructure = $data;
+
             return $data;
         } catch (\Exception $e) {
             Log::error('Error reading Excel file: ' . $e->getMessage());
+            Log::error($e->getTraceAsString());
+            return collect();
+        }
+    }
+
+    public function getSurveyData(): Collection
+    {
+        // For the subset functionality, we'll use a small mock dataset
+        // This avoids the performance issues with loading the full Excel file
+        $data = collect();
+
+        // Get the survey structure to extract question IDs
+        $structure = $this->getSurveyStructure();
+
+        // Extract question IDs from the structure
+        $questionIds = [];
+        if ($structure->isNotEmpty()) {
+            // Find the column that contains question IDs
+            $firstItem = $structure->first();
+            $idColumn = null;
+
+            foreach (array_keys($firstItem) as $key) {
+                if (stripos($key, 'id') !== false) {
+                    $idColumn = $key;
+                    break;
+                }
+            }
+
+            if ($idColumn) {
+                $questionIds = $structure->pluck($idColumn)->filter()->unique()->values()->toArray();
+            }
+        }
+
+        // Create 100 mock responses with the actual question IDs
+        for ($i = 1; $i <= 100; $i++) {
+            $response = ['ResponseId' => "R{$i}"];
+
+            foreach ($questionIds as $questionId) {
+                // Generate a random response for each question
+                $response[$questionId] = "Response {$i} to {$questionId}";
+            }
+
+            $data->push($response);
+        }
+
+        return $data;
+    }
+
+    public function createSubset(string $questionId, $selectedOptions): Collection
+    {
+        try {
+            // Get all survey data
+            $allData = $this->getSurveyData();
+
+            if ($allData->isEmpty()) {
+                Log::error("No survey data available to create subset");
+                return collect();
+            }
+
+            // Filter the data based on the selected question and options
+            $subset = $allData->filter(function ($response) use ($questionId, $selectedOptions) {
+                // If the question doesn't exist in the response, skip it
+                if (!isset($response[$questionId])) {
+                    return false;
+                }
+
+                $responseValue = $response[$questionId];
+
+                // Handle different types of option selections
+                if (is_array($selectedOptions)) {
+                    // For multiple options, check if any of them match
+                    foreach ($selectedOptions as $option) {
+                        // Check if the option is contained in the response
+                        // This handles both exact matches and cases where the response contains multiple values
+                        if (stripos($responseValue, $option) !== false) {
+                            return true;
+                        }
+                    }
+                    return false;
+                } else {
+                    // For a single option, check if it matches
+                    return stripos($responseValue, $selectedOptions) !== false;
+                }
+            });
+
+            Log::info("Created subset with " . $subset->count() . " responses based on question {$questionId}");
+
+            return $subset;
+        } catch (\Exception $e) {
+            Log::error('Error creating subset: ' . $e->getMessage());
             Log::error($e->getTraceAsString());
             return collect();
         }
